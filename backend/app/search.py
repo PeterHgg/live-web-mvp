@@ -1,12 +1,9 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import os
 import random
 from dataclasses import dataclass, asdict
 from typing import Any
-from urllib.parse import quote
 
 import httpx
 
@@ -17,7 +14,6 @@ USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
 )
-DOUYIN_COOKIE = os.getenv("DOUYIN_COOKIE", "")
 
 
 @dataclass
@@ -36,10 +32,6 @@ class SearchRoom:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
-
-
-def clean_html(value: Any) -> str:
-    return str(value or "").replace("<em class=\"keyword\">", "").replace("</em>", "").replace("<em>", "")
 
 
 def abs_url(value: Any) -> str | None:
@@ -152,138 +144,9 @@ async def search_huya(client: httpx.AsyncClient, keyword: str, page: int, page_s
     return rooms
 
 
-async def search_bilibili(client: httpx.AsyncClient, keyword: str, page: int, page_size: int) -> list[SearchRoom]:
-    response = await client.get(
-        "https://api.bilibili.com/x/web-interface/search/type",
-        params={
-            "context": "",
-            "search_type": "live",
-            "cover_type": "user_cover",
-            "order": "",
-            "keyword": keyword,
-            "category_id": "",
-            "__refresh__": "",
-            "_extra": "",
-            "highlight": 0,
-            "single_column": 0,
-            "page": page,
-            "page_size": page_size,
-        },
-        headers={
-            "user-agent": USER_AGENT,
-            "referer": "https://search.bilibili.com/",
-            "origin": "https://search.bilibili.com",
-        },
-    )
-    data = response.json()
-    result = data.get("data", {}).get("result", {})
-    live_rooms = result.get("live_room", []) if isinstance(result, dict) else []
-
-    rooms: list[SearchRoom] = []
-    for item in live_rooms or []:
-        room_id = str(item.get("roomid") or "")
-        if not room_id:
-            continue
-        is_live = int(item.get("live_status") or 0) == 1
-        rooms.append(SearchRoom(
-            platform="bilibili",
-            platform_name="哔哩哔哩",
-            room_id=room_id,
-            title=clean_html(item.get("title")),
-            anchor_name=clean_html(item.get("uname")),
-            cover=abs_url(item.get("cover")),
-            avatar=abs_url(item.get("uface")),
-            area=str(item.get("cate_name") or ""),
-            watching=str(item.get("online") or ""),
-            is_live=is_live,
-            live_url=f"https://live.bilibili.com/{room_id}",
-        ))
-    return rooms
-
-
-async def search_douyin(client: httpx.AsyncClient, keyword: str, page: int, page_size: int) -> list[SearchRoom]:
-    params = {
-        "device_platform": "webapp",
-        "aid": "6383",
-        "channel": "channel_pc_web",
-        "search_channel": "aweme_live",
-        "keyword": keyword,
-        "search_source": "switch_tab",
-        "query_correct_type": "1",
-        "is_filter_search": "0",
-        "from_group_id": "",
-        "offset": str((page - 1) * page_size),
-        "count": str(page_size),
-        "pc_client_type": "1",
-        "version_code": "170400",
-        "version_name": "17.4.0",
-        "cookie_enabled": "true",
-        "screen_width": "1980",
-        "screen_height": "1080",
-        "browser_language": "zh-CN",
-        "browser_platform": "Win32",
-        "browser_name": "Edge",
-        "browser_version": "125.0.0.0",
-        "browser_online": "true",
-        "engine_name": "Blink",
-        "engine_version": "125.0.0.0",
-        "os_name": "Windows",
-        "os_version": "10",
-        "cpu_core_num": "12",
-        "device_memory": "8",
-        "platform": "PC",
-        "downlink": "10",
-        "effective_type": "4g",
-        "round_trip_time": "100",
-        "webid": "7382872326016435738",
-    }
-    response = await client.get(
-        "https://www.douyin.com/aweme/v1/web/live/search/",
-        params=params,
-        headers={
-            "authority": "www.douyin.com",
-            "accept": "application/json, text/plain, */*",
-            "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
-            "referer": f"https://www.douyin.com/search/{quote(keyword)}?type=live",
-            "user-agent": USER_AGENT,
-            **({"cookie": DOUYIN_COOKIE} if DOUYIN_COOKIE else {}),
-        },
-    )
-    data = response.json()
-    if data == "blocked" or data == "":
-        raise RuntimeError("抖音直播搜索被限制，请稍后再试")
-
-    rooms: list[SearchRoom] = []
-    for item in data.get("data", []) or []:
-        raw = item.get("lives", {}).get("rawdata")
-        if not raw:
-            continue
-        room = json.loads(raw)
-        web_rid = str(room.get("owner", {}).get("web_rid") or "")
-        if not web_rid:
-            continue
-        is_live = int(room.get("status") or 0) == 2
-        rooms.append(SearchRoom(
-            platform="douyin",
-            platform_name="抖音",
-            room_id=web_rid,
-            title=str(room.get("title") or ""),
-            anchor_name=str(room.get("owner", {}).get("nickname") or ""),
-            cover=abs_url((room.get("cover", {}).get("url_list") or [None])[0]),
-            avatar=abs_url((room.get("owner", {}).get("avatar_thumb", {}).get("url_list") or [None])[0]),
-            area="",
-            watching=str(room.get("stats", {}).get("total_user_str") or room.get("room_view_stats", {}).get("display_value") or ""),
-            is_live=is_live,
-            live_url=f"https://live.douyin.com/{web_rid}",
-        ))
-    return rooms
-
-
 SEARCHERS = {
     "douyu": search_douyu,
     "huya": search_huya,
-    "bilibili": search_bilibili,
-    "douyin": search_douyin,
 }
 
 

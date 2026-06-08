@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from .danmaku import DanmakuError, run_danmaku
 from .resolver import ResolveError, resolve_live_stream, supported_platforms
 from .search import search_rooms
 
@@ -65,7 +66,7 @@ async def resolve(req: ResolveRequest) -> dict:
 @app.get("/api/search")
 async def search(
     keyword: Annotated[str, Query(min_length=1, description="搜索关键词")],
-    platform: Annotated[str | None, Query(description="douyu/huya/bilibili/douyin/all")] = None,
+    platform: Annotated[str | None, Query(description="douyu/huya/all")] = None,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=30)] = 20,
 ) -> dict:
@@ -75,3 +76,23 @@ async def search(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"搜索失败：{exc}") from exc
+
+
+@app.websocket("/api/danmaku")
+async def danmaku(websocket: WebSocket) -> None:
+    await websocket.accept()
+    target = websocket.query_params.get("target", "")
+    platform = websocket.query_params.get("platform")
+    try:
+        await run_danmaku(websocket, target=target, platform=platform)
+    except WebSocketDisconnect:
+        return
+    except (ResolveError, DanmakuError) as exc:
+        await websocket.send_json({"type": "error", "message": str(exc)})
+    except Exception as exc:
+        await websocket.send_json({"type": "error", "message": f"弹幕连接失败：{exc}"})
+    finally:
+        try:
+            await websocket.close()
+        except RuntimeError:
+            pass

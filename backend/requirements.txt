@@ -2,3 +2,4 @@ fastapi==0.124.1
 uvicorn[standard]==0.38.0
 streamget==4.0.10
 httpx[http2]==0.28.1
+websockets==16.0

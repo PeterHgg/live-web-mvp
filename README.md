@@ -9,12 +9,10 @@
 
 ## 已接入平台
 
-当前只保留四个平台：
+当前只保留两个平台：
 
 - 斗鱼
 - 虎牙
-- 哔哩哔哩
-- 抖音
 
 ## NAS 部署
 
@@ -73,22 +71,6 @@ ports:
 
 ```text
 http://NAS_IP:8090
-```
-
-### 抖音 Cookie 可选配置
-
-如抖音搜索被风控，可以给 backend 添加环境变量：
-
-```yaml
-services:
-  backend:
-    image: ghcr.io/peterhgg/live-web-mvp-backend:latest
-    container_name: live-web-mvp-backend
-    restart: unless-stopped
-    expose:
-      - "8000"
-    environment:
-      DOUYIN_COOKIE: "你的抖音 Cookie"
 ```
 
 ## 镜像自动构建
@@ -176,7 +158,7 @@ GET /api/search?keyword=lol&platform=all&page=1&page_size=20
 `platform` 可选：
 
 ```text
-all / douyu / huya / bilibili / douyin
+all / douyu / huya
 ```
 
 ### 解析直播间
@@ -198,7 +180,7 @@ Content-Type: application/json
 2. 播放时浏览器会直连平台返回的 HLS/FLV 地址，因此直播源必须允许浏览器直连且不能被 CORS/防盗链拦截。
 3. 如果 FLV 播不了，优先尝试 HLS/M3U8 流。
 4. iOS/Safari 对 FLV/MSE 支持有限，优先用 HLS。
-5. 抖音、斗鱼等平台接口可能会风控或要求 Node.js/Cookie，后续需要做 Cookie 配置和失败重试。
+5. 斗鱼、虎牙平台接口可能会风控，后续需要做失败重试和提示优化。
 
 ## 后续可做
 

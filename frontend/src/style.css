@@ -127,7 +127,6 @@ h2 {
   backdrop-filter: blur(18px);
 }
 
-.form-card,
 .search-card {
   padding: 22px;
   margin-bottom: 22px;
@@ -168,8 +167,9 @@ h2 {
   align-items: flex-end;
 }
 
-.search-row > label:first-child {
-  width: 180px;
+.search-row > label:first-child,
+.quality-select {
+  width: 160px;
 }
 
 .search-input {
@@ -205,7 +205,8 @@ select {
 
 .toolbar,
 .examples,
-.streams {
+.streams,
+.danmaku-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -213,9 +214,50 @@ select {
   margin-top: 16px;
 }
 
-.examples {
+.examples,
+.danmaku-toolbar {
   color: #8f9db7;
   font-size: 14px;
+}
+
+.danmaku-toolbar button.active {
+  background: #3d63ff;
+}
+
+.danmaku-settings {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.danmaku-settings label {
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 14px;
+}
+
+.danmaku-settings input {
+  padding: 0;
+  accent-color: #3d63ff;
+}
+
+.danmaku-log {
+  display: grid;
+  gap: 8px;
+  overflow: auto;
+  max-height: 220px;
+  margin-top: 16px;
+  border-radius: 16px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #cbd6ea;
+  font-size: 14px;
+}
+
+.danmaku-log strong {
+  color: #71e6ff;
 }
 
 .examples button,
@@ -236,7 +278,19 @@ select {
   width: auto;
 }
 
+.player-header {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.player-header p:last-child {
+  color: #aab7cf;
+}
+
 .player-shell {
+  position: relative;
   overflow: hidden;
   border-radius: 26px;
   background: #000;
@@ -249,6 +303,38 @@ video {
   height: 100%;
   display: block;
   background: #000;
+}
+
+.danmaku-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.danmaku-item {
+  position: absolute;
+  left: 100%;
+  max-width: 80%;
+  white-space: nowrap;
+  line-height: 1;
+  text-shadow:
+    1px 1px 2px #000,
+    -1px -1px 2px #000,
+    1px -1px 2px #000,
+    -1px 1px 2px #000;
+  animation-name: danmaku-move;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+@keyframes danmaku-move {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(calc(-100vw - 100%));
+  }
 }
 
 .error {
@@ -287,6 +373,13 @@ video {
   border-radius: 12px;
   object-fit: cover;
   background: #070b14;
+}
+
+.cover.placeholder {
+  display: grid;
+  place-items: center;
+  color: #71e6ff;
+  font-weight: 800;
 }
 
 .result-main {
@@ -368,13 +461,15 @@ pre {
 
 @media (max-width: 720px) {
   .hero,
+  .player-header,
   .room-info {
     align-items: flex-start;
     flex-direction: column;
   }
 
   .grid,
-  .search-row {
+  .search-row,
+  .danmaku-settings {
     align-items: stretch;
     display: grid;
     grid-template-columns: 1fr;

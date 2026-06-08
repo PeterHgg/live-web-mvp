@@ -4,12 +4,7 @@ from dataclasses import asdict, is_dataclass
 from typing import Any
 from urllib.parse import urlparse
 
-from streamget import (
-    BilibiliLiveStream,
-    DouyinLiveStream,
-    DouyuLiveStream,
-    HuyaLiveStream,
-)
+from streamget import DouyuLiveStream, HuyaLiveStream
 
 
 QUALITY_LABELS = {
@@ -35,18 +30,6 @@ PLATFORMS: dict[str, dict[str, Any]] = {
         "hosts": ["huya.com", "www.huya.com", "m.huya.com"],
         "room_url": lambda value: f"https://www.huya.com/{value}",
     },
-    "bilibili": {
-        "name": "哔哩哔哩",
-        "class": BilibiliLiveStream,
-        "hosts": ["live.bilibili.com"],
-        "room_url": lambda value: f"https://live.bilibili.com/{value}",
-    },
-    "douyin": {
-        "name": "抖音",
-        "class": DouyinLiveStream,
-        "hosts": ["live.douyin.com", "v.douyin.com", "www.douyin.com"],
-        "room_url": lambda value: f"https://live.douyin.com/{value}",
-    },
 }
 
 
@@ -55,14 +38,6 @@ ALIASES = {
     "斗鱼": "douyu",
     "huya": "huya",
     "虎牙": "huya",
-    "bili": "bilibili",
-    "bilibili": "bilibili",
-    "哔哩": "bilibili",
-    "哔哩哔哩": "bilibili",
-    "b站": "bilibili",
-    "douyin": "douyin",
-    "抖音": "douyin",
-    "dy": "douyin",
 }
 
 
