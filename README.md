@@ -16,14 +16,105 @@
 - 哔哩哔哩
 - 抖音
 
-抖音、斗鱼等平台接口可能需要 Cookie、Node.js 或特定网络环境。第一版先不做账号/Cookie 管理 UI。
+## NAS 部署
 
-## Docker Compose 部署
+推荐在 NAS 里直接使用预构建镜像的 Compose 文件：
 
-生产方式启动：
+[docker-compose.nas.yml](docker-compose.nas.yml)
+
+内容如下：
+
+```yaml
+services:
+  backend:
+    image: ghcr.io/peterhgg/live-web-mvp-backend:latest
+    container_name: live-web-mvp-backend
+    restart: unless-stopped
+    expose:
+      - "8000"
+
+  frontend:
+    image: ghcr.io/peterhgg/live-web-mvp-frontend:latest
+    container_name: live-web-mvp-frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+```
+
+启动：
 
 ```bash
-git clone <your-repo-url>
+docker compose -f docker-compose.nas.yml up -d
+```
+
+访问：
+
+```text
+http://NAS_IP:8080
+```
+
+如果 NAS 的 `8080` 端口被占用，把：
+
+```yaml
+ports:
+  - "8080:80"
+```
+
+改成例如：
+
+```yaml
+ports:
+  - "8090:80"
+```
+
+然后访问：
+
+```text
+http://NAS_IP:8090
+```
+
+### 抖音 Cookie 可选配置
+
+如抖音搜索被风控，可以给 backend 添加环境变量：
+
+```yaml
+services:
+  backend:
+    image: ghcr.io/peterhgg/live-web-mvp-backend:latest
+    container_name: live-web-mvp-backend
+    restart: unless-stopped
+    expose:
+      - "8000"
+    environment:
+      DOUYIN_COOKIE: "你的抖音 Cookie"
+```
+
+## 镜像自动构建
+
+GitHub Actions 会在推送到 `main` 或推送 `v*` tag 时自动构建并发布镜像到 GHCR：
+
+```text
+ghcr.io/peterhgg/live-web-mvp-backend:latest
+ghcr.io/peterhgg/live-web-mvp-frontend:latest
+```
+
+同时支持：
+
+```text
+linux/amd64
+linux/arm64
+```
+
+适合常见 x86 NAS 和 ARM NAS。
+
+## 从源码部署
+
+如果不想用预构建镜像，也可以在服务器/NAS 上源码构建：
+
+```bash
+git clone https://github.com/PeterHgg/live-web-mvp.git
 cd live-web-mvp
 docker compose up -d --build
 ```
@@ -35,13 +126,6 @@ http://服务器IP:8080
 ```
 
 前端容器内置 Nginx，会把 `/api/*` 反代到后端容器。后端不暴露到公网，只在 Compose 网络内服务。
-
-如果需要设置抖音搜索 Cookie，可以在 `docker-compose.yml` 的 backend 服务里添加：
-
-```yaml
-environment:
-  DOUYIN_COOKIE: "你的 Cookie"
-```
 
 ## 本地开发
 
@@ -95,33 +179,6 @@ GET /api/search?keyword=lol&platform=all&page=1&page_size=20
 all / douyu / huya / bilibili / douyin
 ```
 
-返回示例：
-
-```json
-{
-  "keyword": "lol",
-  "platform": "all",
-  "results": [
-    {
-      "platform": "huya",
-      "platform_name": "虎牙",
-      "room_id": "138297",
-      "title": "直播标题",
-      "anchor_name": "主播名",
-      "live_url": "https://www.huya.com/138297",
-      "is_live": true,
-      "cover": "https://...",
-      "avatar": "https://...",
-      "watching": "572792",
-      "area": "英雄联盟"
-    }
-  ],
-  "errors": {}
-}
-```
-
-前端搜索结果里的“播放”按钮会自动把 `live_url` 填入解析接口并播放。
-
 ### 解析直播间
 
 ```http
@@ -132,32 +189,6 @@ Content-Type: application/json
   "target": "https://www.huya.com/52333",
   "platform": null,
   "quality": "OD"
-}
-```
-
-返回示例：
-
-```json
-{
-  "platform": "huya",
-  "platform_name": "虎牙直播",
-  "anchor_name": "...",
-  "title": "...",
-  "is_live": true,
-  "streams": [
-    {
-      "type": "hls",
-      "quality": "OD",
-      "quality_label": "原画",
-      "url": "https://...m3u8"
-    },
-    {
-      "type": "flv",
-      "quality": "OD",
-      "quality_label": "原画",
-      "url": "https://...flv"
-    }
-  ]
 }
 ```
 
