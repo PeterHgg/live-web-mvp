@@ -77,7 +77,8 @@ const danmakuFontWeight = ref(700);
 const danmakuOpacity = ref(1);
 const danmakuSpeed = ref(1);
 const danmakuArea = ref(60);
-const danmakuDensity = ref(12);
+const danmakuDensity = ref(8);
+const danmakuMaxOnScreen = ref(30);
 const onlineCount = ref<number | null>(null);
 let danmakuSocket: WebSocket | null = null;
 let danmakuId = 0;
@@ -459,7 +460,7 @@ function pushDanmaku(userName: string, message: string, color?: string) {
     duration: danmakuBaseDuration.value + (id % 3),
   };
   const now = window.performance.now();
-  if (now - lastDanmakuAt >= danmakuMinGap.value) {
+  if (now - lastDanmakuAt >= danmakuMinGap.value && danmakuMessages.value.length < danmakuMaxOnScreen.value) {
     danmakuMessages.value.push(item);
     lastDanmakuAt = now;
   }
@@ -638,7 +639,11 @@ onBeforeUnmount(() => {
           </label>
           <label>
             密度 {{ danmakuDensity }} 条/秒
-            <input v-model.number="danmakuDensity" type="range" min="2" max="30" step="1" />
+            <input v-model.number="danmakuDensity" type="range" min="1" max="20" step="1" />
+          </label>
+          <label>
+            同屏上限 {{ danmakuMaxOnScreen }} 条
+            <input v-model.number="danmakuMaxOnScreen" type="range" min="5" max="60" step="5" />
           </label>
         </div>
 
