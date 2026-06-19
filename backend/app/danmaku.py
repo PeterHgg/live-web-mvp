@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 import re
 import struct
+import zlib
 from contextlib import suppress
 from urllib.parse import urlparse
 
@@ -52,8 +54,10 @@ async def run_danmaku(websocket: WebSocket, target: str, platform: str | None = 
         await douyu_danmaku(websocket, room_id)
     elif platform_key == "huya":
         await huya_danmaku(websocket, room_id)
+    elif platform_key == "bilibili":
+        await bilibili_danmaku(websocket, room_id)
     else:
-        raise DanmakuError("当前弹幕支持斗鱼、虎牙")
+        raise DanmakuError("当前弹幕支持斗鱼、虎牙、哔哩哔哩")
 
 
 async def keep_client_alive(websocket: WebSocket) -> None:
@@ -411,3 +415,113 @@ def tars_skip_value(data: bytes, pos: int, field_type: int) -> int:
         length, pos = tars_read_value(data, pos, length_type)
         return pos + int(length)
     return pos
+
+
+async def bilibili_danmaku(websocket: WebSocket, room_id: str) -> None:
+    token, host, port = await get_bilibili_danmaku_args(room_id)
+    async with websockets.connect(
+        f"wss://{host}:{port}/sub",
+        additional_headers={"user-agent": USER_AGENT},
+        ping_interval=None,
+        proxy=None,
+    ) as upstream:
+        await send_status(websocket, "bilibili", "哔哩哔哩弹幕已连接")
+
+        # Send auth
+        auth_data = {
+            "uid": 0,
+            "roomid": int(room_id),
+            "protover": 1,
+            "platform": "web",
+            "type": 2,
+            "key": token
+        }
+        body = json.dumps(auth_data).encode("utf-8")
+        header = struct.pack(">IHHII", len(body) + 16, 16, 1, 7, 1)
+        await upstream.send(header + body)
+
+        heartbeat = asyncio.create_task(bilibili_heartbeat(upstream))
+        reader = asyncio.create_task(bilibili_reader(websocket, upstream))
+        try:
+            await wait_with_client(websocket, reader)
+        finally:
+            heartbeat.cancel()
+            with suppress(asyncio.CancelledError):
+                await heartbeat
+
+
+async def get_bilibili_danmaku_args(room_id: str) -> tuple[str, str, int]:
+    url = f"https://api.live.bilibili.com/room/v1/Danmu/getConf?room_id={room_id}"
+    async with httpx.AsyncClient(timeout=10, headers={"user-agent": USER_AGENT}) as client:
+        response = await client.get(url)
+        response.raise_for_status()
+        data = response.json()
+        if data.get("code") != 0:
+            raise DanmakuError(f"获取哔哩哔哩弹幕参数失败: {data.get('message')}")
+
+        info = data.get("data", {})
+        token = info.get("token")
+        server_list = info.get("host_server_list", [])
+        if not token or not server_list:
+            raise DanmakuError("获取哔哩哔哩弹幕 Token 失败")
+
+        host = server_list[0]["host"]
+        port = server_list[0]["wss_port"]
+        return token, host, port
+
+
+async def bilibili_heartbeat(upstream: ClientConnection) -> None:
+    while True:
+        await asyncio.sleep(30)
+        hb_header = struct.pack(">IHHII", 16, 16, 1, 2, 1)
+        await upstream.send(hb_header)
+
+
+async def bilibili_reader(websocket: WebSocket, upstream: ClientConnection) -> None:
+    async def process_msg(op: int, body_data: bytes) -> None:
+        if op == 5:
+            try:
+                val = json.loads(body_data.decode("utf-8", errors="ignore"))
+                cmd = val.get("cmd")
+                if cmd == "DANMU_MSG":
+                    info = val.get("info", [])
+                    if len(info) >= 3:
+                        user_name = info[2][1] if len(info[2]) >= 2 else "匿名用户"
+                        message = info[1]
+                        color_val = info[0][3] if len(info[0]) >= 4 else None
+                        color_hex = f"#{color_val:06x}" if isinstance(color_val, int) else None
+                        await send_chat(websocket, "bilibili", user_name, message, color_hex)
+            except Exception:
+                pass
+        elif op == 3:
+            try:
+                online = struct.unpack(">I", body_data)[0]
+                await send_online(websocket, "bilibili", online)
+            except Exception:
+                pass
+
+    async def handle_packet(proto: int, op: int, body_data: bytes) -> None:
+        if proto == 2:
+            try:
+                decompressed = zlib.decompress(body_data)
+                offset = 0
+                while offset + 16 <= len(decompressed):
+                    packet_len, header_len, sub_proto, sub_op, seq = struct.unpack_from(">IHHII", decompressed, offset)
+                    sub_body = decompressed[offset + header_len : offset + packet_len]
+                    await process_msg(sub_op, sub_body)
+                    offset += packet_len
+            except Exception:
+                pass
+        else:
+            await process_msg(op, body_data)
+
+    async for data in upstream:
+        if isinstance(data, str):
+            data = data.encode("utf-8")
+        offset = 0
+        while offset + 16 <= len(data):
+            packet_len, header_len, protover, operation, seq = struct.unpack_from(">IHHII", data, offset)
+            body = data[offset + header_len : offset + packet_len]
+            await handle_packet(protover, operation, body)
+            offset += packet_len
+

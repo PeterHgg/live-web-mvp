@@ -43,6 +43,10 @@ def abs_url(value: Any) -> str | None:
     return url
 
 
+def clean_html(value: Any) -> str:
+    return str(value or "").replace("<em class=\"keyword\">", "").replace("</em>", "").replace("<em>", "")
+
+
 def random_hex(length: int = 32) -> str:
     return "".join(random.choice("0123456789abcdef") for _ in range(length))
 
@@ -144,9 +148,64 @@ async def search_huya(client: httpx.AsyncClient, keyword: str, page: int, page_s
     return rooms
 
 
+async def search_bilibili(client: httpx.AsyncClient, keyword: str, page: int, page_size: int) -> list[SearchRoom]:
+    try:
+        await client.get("https://www.bilibili.com/", headers={"user-agent": USER_AGENT})
+    except Exception:
+        pass
+
+    response = await client.get(
+        "https://api.bilibili.com/x/web-interface/search/type",
+        params={
+            "context": "",
+            "search_type": "live",
+            "cover_type": "user_cover",
+            "order": "",
+            "keyword": keyword,
+            "category_id": "",
+            "__refresh__": "",
+            "_extra": "",
+            "highlight": 0,
+            "single_column": 0,
+            "page": page,
+            "page_size": page_size,
+        },
+        headers={
+            "user-agent": USER_AGENT,
+            "referer": "https://search.bilibili.com/",
+            "origin": "https://search.bilibili.com",
+        },
+    )
+    data = response.json()
+    result = data.get("data", {}).get("result", {})
+    live_rooms = result.get("live_room", []) if isinstance(result, dict) else []
+
+    rooms: list[SearchRoom] = []
+    for item in live_rooms or []:
+        room_id = str(item.get("roomid") or "")
+        if not room_id:
+            continue
+        is_live = int(item.get("live_status") or 0) == 1
+        rooms.append(SearchRoom(
+            platform="bilibili",
+            platform_name="哔哩哔哩",
+            room_id=room_id,
+            title=clean_html(item.get("title")),
+            anchor_name=clean_html(item.get("uname")),
+            cover=abs_url(item.get("cover")),
+            avatar=abs_url(item.get("uface")),
+            area=str(item.get("cate_name") or ""),
+            watching=str(item.get("online") or ""),
+            is_live=is_live,
+            live_url=f"https://live.bilibili.com/{room_id}",
+        ))
+    return rooms
+
+
 SEARCHERS = {
     "douyu": search_douyu,
     "huya": search_huya,
+    "bilibili": search_bilibili,
 }
 
 

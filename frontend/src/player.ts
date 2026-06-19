@@ -48,9 +48,24 @@ export async function playStream(video: HTMLVideoElement, options: PlayOptions) 
     hls.loadSource(sourceUrl);
     hls.attachMedia(video);
     await new Promise<void>((resolve, reject) => {
-      const onReady = () => resolve();
+      const timer = window.setTimeout(() => {
+        cleanup();
+        reject(new Error('加载 HLS 媒体源超时'));
+      }, 6000);
+      const cleanup = () => {
+        window.clearTimeout(timer);
+        hls?.off(Hls.Events.MANIFEST_PARSED, onReady);
+        hls?.off(Hls.Events.ERROR, onError);
+      };
+      const onReady = () => {
+        cleanup();
+        resolve();
+      };
       const onError = (_event: string, data: { fatal?: boolean; details?: string; type?: string }) => {
-        if (data.fatal) reject(new Error(data.details || data.type));
+        if (data.fatal) {
+          cleanup();
+          reject(new Error(data.details || data.type));
+        }
       };
       hls?.once(Hls.Events.MANIFEST_PARSED, onReady);
       hls?.on(Hls.Events.ERROR, onError);
@@ -93,7 +108,7 @@ async function waitForCanPlay(video: HTMLVideoElement, token: number) {
     const timer = window.setTimeout(() => {
       cleanup();
       reject(new Error('等待直播源数据超时'));
-    }, 10000);
+    }, 6000);
     const cleanup = () => {
       window.clearTimeout(timer);
       video.removeEventListener('canplay', onReady);

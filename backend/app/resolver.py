@@ -4,7 +4,51 @@ from dataclasses import asdict, is_dataclass
 from typing import Any
 from urllib.parse import urlparse
 
-from streamget import DouyuLiveStream, HuyaLiveStream
+from streamget import BilibiliLiveStream, DouyuLiveStream, HuyaLiveStream
+from streamget.data import wrap_stream
+
+
+class CustomBilibiliLiveStream(BilibiliLiveStream):
+    async def fetch_stream_url(self, json_data: dict, video_quality: str | int | None = None):
+        platform_str = "哔哩哔哩"
+        anchor_name = json_data.get('anchor_name')
+        room_url = json_data.get('room_url')
+
+        if not json_data["live_status"]:
+            return wrap_stream(
+                {"platform": platform_str, "anchor_name": anchor_name, "is_live": False, "live_url": room_url}
+            )
+
+        video_quality_options = {
+            "OD": '10000',
+            "BD": '400',
+            "UHD": '250',
+            "HD": '150',
+            "SD": '80',
+            "LD": '80'
+        }
+
+        if not video_quality:
+            video_quality = "OD"
+        else:
+            if str(video_quality).isdigit():
+                video_quality = list(video_quality_options.keys())[int(video_quality)]
+            else:
+                video_quality = video_quality.upper()
+
+        select_quality = video_quality_options.get(video_quality, '10000')
+        play_url = await self.get_bilibili_stream_data(
+            room_url, qn=select_quality, platform='h5')
+        data = {
+            'platform': platform_str,
+            'anchor_name': json_data['anchor_name'],
+            'is_live': True,
+            'title': json_data['title'],
+            'quality': video_quality,
+            'record_url': play_url,
+            'live_url': room_url
+        }
+        return wrap_stream(data)
 
 
 QUALITY_LABELS = {
@@ -30,6 +74,12 @@ PLATFORMS: dict[str, dict[str, Any]] = {
         "hosts": ["huya.com", "www.huya.com", "m.huya.com"],
         "room_url": lambda value: f"https://www.huya.com/{value}",
     },
+    "bilibili": {
+        "name": "哔哩哔哩",
+        "class": CustomBilibiliLiveStream,
+        "hosts": ["live.bilibili.com"],
+        "room_url": lambda value: f"https://live.bilibili.com/{value}",
+    },
 }
 
 
@@ -38,6 +88,11 @@ ALIASES = {
     "斗鱼": "douyu",
     "huya": "huya",
     "虎牙": "huya",
+    "bili": "bilibili",
+    "bilibili": "bilibili",
+    "哔哩": "bilibili",
+    "哔哩哔哩": "bilibili",
+    "b站": "bilibili",
 }
 
 

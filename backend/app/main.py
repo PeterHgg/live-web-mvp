@@ -66,7 +66,7 @@ async def resolve(req: ResolveRequest) -> dict:
 @app.get("/api/search")
 async def search(
     keyword: Annotated[str, Query(min_length=1, description="搜索关键词")],
-    platform: Annotated[str | None, Query(description="douyu/huya/all")] = None,
+    platform: Annotated[str | None, Query(description="douyu/huya/bilibili/all")] = None,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=30)] = 20,
 ) -> dict:

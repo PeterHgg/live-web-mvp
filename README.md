@@ -9,10 +9,11 @@
 
 ## 已接入平台
 
-当前只保留两个平台：
+当前保留的平台：
 
 - 斗鱼
 - 虎牙
+- 哔哩哔哩
 
 ## NAS 部署
 
@@ -158,7 +159,7 @@ GET /api/search?keyword=lol&platform=all&page=1&page_size=20
 `platform` 可选：
 
 ```text
-all / douyu / huya
+all / douyu / huya / bilibili
 ```
 
 ### 解析直播间

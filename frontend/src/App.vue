@@ -268,13 +268,14 @@ function backHome() {
 }
 
 function isLiveUrl(value: string) {
-  return /^https?:\/\//i.test(value) || /(douyu\.com|huya\.com)/i.test(value);
+  return /^https?:\/\//i.test(value) || /(douyu\.com|huya\.com|bilibili\.com)/i.test(value);
 }
 
 function detectPlatformFromUrl(value: string) {
   const text = value.toLowerCase();
   if (text.includes('douyu.com')) return 'douyu';
   if (text.includes('huya.com')) return 'huya';
+  if (text.includes('bilibili.com')) return 'bilibili';
   return 'auto';
 }
 
