@@ -79,6 +79,8 @@ const danmakuSpeed = ref(1);
 const danmakuArea = ref(60);
 const danmakuDensity = ref(8);
 const danmakuMaxOnScreen = ref(30);
+const playBufferDuration = ref(0);
+const bufferProgressText = ref('');
 const onlineCount = ref<number | null>(null);
 let danmakuSocket: WebSocket | null = null;
 let danmakuId = 0;
@@ -147,6 +149,7 @@ async function resolveRoom() {
   playing.value = false;
   result.value = null;
   selectedIndex.value = 0;
+  playBufferDuration.value = 0;
   if (videoRef.value) cleanupPlayer(videoRef.value);
 
   try {
@@ -198,19 +201,30 @@ async function playSelected() {
     ...streams.filter((stream) => stream.url !== firstStream.url),
   ];
   const failures: string[] = [];
+  bufferProgressText.value = '';
 
   for (const stream of candidates) {
     try {
       await playStream(video, {
         url: stream.url,
         type: stream.type,
+        bufferDuration: playBufferDuration.value,
+        onBufferProgress: (buffered, target) => {
+          if (target > 0) {
+            bufferProgressText.value = `正在建立延时缓存：已缓存 ${buffered.toFixed(1)} / ${target} 秒`;
+          } else {
+            bufferProgressText.value = '';
+          }
+        }
       });
+      bufferProgressText.value = '';
       selectedIndex.value = streams.findIndex((item) => item.url === stream.url);
       playing.value = true;
       startStallWatch();
       connectDanmaku();
       return;
     } catch (err) {
+      bufferProgressText.value = '';
       failures.push(`${stream.type.toUpperCase()}：${err instanceof Error ? err.message : String(err)}`);
     }
   }
@@ -578,6 +592,10 @@ onBeforeUnmount(() => {
 
       <section class="player-shell">
         <video ref="videoRef" controls playsinline autoplay muted></video>
+        <div v-if="loading || bufferProgressText" class="player-loading-overlay">
+          <div class="loading-spinner"></div>
+          <p class="loading-text">{{ bufferProgressText || '正在解析直播源...' }}</p>
+        </div>
         <div v-if="danmakuEnabled" class="danmaku-layer">
           <span
             v-for="item in danmakuMessages"
@@ -614,7 +632,14 @@ onBeforeUnmount(() => {
             {{ danmakuEnabled ? '关闭弹幕' : '开启弹幕' }}
           </button>
           <button @click="pushDanmaku('测试', '这是一条本地测试弹幕')">测试弹幕</button>
-          <span>斗鱼、虎牙弹幕已接入。如果顶部没看到滚动弹幕，可看下方弹幕列表。</span>
+          <span>斗鱼、虎牙、B站弹幕已接入。如果顶部没看到滚动弹幕，可看下方弹幕列表。</span>
+        </div>
+
+        <div class="playback-settings">
+          <label>
+            延时缓存 {{ playBufferDuration }} 秒
+            <input v-model.number="playBufferDuration" type="range" min="0" max="15" step="1" @change="playSelected" />
+          </label>
         </div>
 
         <div v-if="danmakuEnabled" class="danmaku-settings">

@@ -224,21 +224,24 @@ select {
   background: #3d63ff;
 }
 
-.danmaku-settings {
+.danmaku-settings,
+.playback-settings {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin-top: 16px;
 }
 
-.danmaku-settings label {
+.danmaku-settings label,
+.playback-settings label {
   border-radius: 16px;
   padding: 12px;
   background: rgba(255, 255, 255, 0.04);
   font-size: 14px;
 }
 
-.danmaku-settings input {
+.danmaku-settings input,
+.playback-settings input {
   padding: 0;
   accent-color: #3d63ff;
 }
@@ -303,6 +306,43 @@ video {
   height: 100%;
   display: block;
   background: #000;
+}
+
+.player-loading-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.loading-spinner {
+  width: 48px;
+  height: 48px;
+  border: 4px solid rgba(255, 255, 255, 0.15);
+  border-left-color: #58a6ff;
+  border-radius: 50%;
+  animation: spinner 0.8s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spinner {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.loading-text {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  color: #c9d1d9;
 }
 
 .danmaku-layer {
@@ -469,7 +509,8 @@ pre {
 
   .grid,
   .search-row,
-  .danmaku-settings {
+  .danmaku-settings,
+  .playback-settings {
     align-items: stretch;
     display: grid;
     grid-template-columns: 1fr;

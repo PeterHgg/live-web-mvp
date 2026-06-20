@@ -6,6 +6,8 @@ export type StreamType = 'hls' | 'flv' | 'native';
 export interface PlayOptions {
   url: string;
   type: StreamType;
+  bufferDuration: number;
+  onBufferProgress?: (bufferedSeconds: number, targetSeconds: number) => void;
 }
 
 let hls: Hls | null = null;
@@ -41,9 +43,12 @@ export async function playStream(video: HTMLVideoElement, options: PlayOptions) 
     if (!Hls.isSupported()) {
       throw new Error('当前浏览器不支持 HLS 播放');
     }
+    const targetLatency = options.bufferDuration;
     hls = new Hls({
-      lowLatencyMode: true,
+      lowLatencyMode: targetLatency <= 3,
       backBufferLength: 30,
+      liveSyncDuration: targetLatency > 0 ? targetLatency : undefined,
+      liveMaxLatencyDuration: targetLatency > 0 ? targetLatency + 6 : undefined,
     });
     hls.loadSource(sourceUrl);
     hls.attachMedia(video);
@@ -78,6 +83,7 @@ export async function playStream(video: HTMLVideoElement, options: PlayOptions) 
     if (!mpegts.isSupported()) {
       throw new Error('当前浏览器不支持 FLV/MPEG-TS 播放');
     }
+    const targetLatency = options.bufferDuration;
     flvPlayer = mpegts.createPlayer(
       {
         type: 'flv',
@@ -88,12 +94,50 @@ export async function playStream(video: HTMLVideoElement, options: PlayOptions) 
         enableWorker: true,
         enableStashBuffer: true,
         stashInitialSize: 384 * 1024,
-        liveBufferLatencyChasing: true,
+        liveBufferLatencyChasing: targetLatency > 0,
+        liveBufferLatencyMinRemain: targetLatency > 0 ? targetLatency : undefined,
+        liveBufferLatencyMaxLatency: targetLatency > 0 ? targetLatency + 1.5 : undefined,
       },
     );
     flvPlayer.attachMediaElement(video);
     flvPlayer.load();
     await waitForCanPlay(video, token);
+
+    // Wait for buffer to build up if needed
+    if (targetLatency > 0) {
+      const timeoutMs = (targetLatency + 6) * 1000;
+      const start = window.performance.now();
+      await new Promise<void>((resolve) => {
+        const check = () => {
+          if (token !== playToken) {
+            resolve();
+            return;
+          }
+          const now = window.performance.now();
+          if (now - start >= timeoutMs) {
+            options.onBufferProgress?.(targetLatency, targetLatency);
+            resolve();
+            return;
+          }
+          const buffered = video.buffered;
+          if (buffered.length > 0) {
+            const bufferEnd = buffered.end(buffered.length - 1);
+            const current = video.currentTime;
+            const bufferLen = Math.max(0, bufferEnd - current);
+            options.onBufferProgress?.(bufferLen, targetLatency);
+            if (bufferLen >= targetLatency) {
+              resolve();
+              return;
+            }
+          } else {
+            options.onBufferProgress?.(0, targetLatency);
+          }
+          window.setTimeout(check, 100);
+        };
+        check();
+      });
+    }
+
     await safePlay(video, token);
     return;
   }
